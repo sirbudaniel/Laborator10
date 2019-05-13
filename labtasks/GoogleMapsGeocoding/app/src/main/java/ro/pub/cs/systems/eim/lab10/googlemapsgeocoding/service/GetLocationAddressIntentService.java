@@ -3,12 +3,15 @@ package ro.pub.cs.systems.eim.lab10.googlemapsgeocoding.service;
 import android.app.IntentService;
 import android.content.Intent;
 import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.ResultReceiver;
 import android.util.Log;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import ro.pub.cs.systems.eim.lab10.googlemapsgeocoding.general.Constants;
 
@@ -53,8 +56,54 @@ public class GetLocationAddressIntentService extends IntentService {
         // concatenate all lines from each address (number of lines: getMaxAddressLineIndex(); specific line: getAddressLine()
         // call handleResult method with result (Constants.RESULT_SUCCESS, Constants.RESULT_FAILURE) and the address details / error message
 
-        errorMessage = "Not implemented yet";
-        handleResult(Constants.RESULT_FAILURE, errorMessage);
+        Geocoder geocoder = new Geocoder(this, Locale.getDefault());
+
+
+        try {
+            Log.i(Constants.TAG, "Started searching for the address...");
+            addressList = geocoder.getFromLocation(
+                    location.getLatitude(),
+                    location.getLongitude(),
+                    Constants.NUMBER_OF_ADDRESSES
+            );
+        } catch (IOException ioException) {
+            errorMessage = "The geocoding service is not available";
+            Log.e(Constants.TAG, "An exception has occurred: " + ioException.getMessage());
+            if (Constants.DEBUG) {
+                ioException.printStackTrace();
+            }
+        } catch (IllegalArgumentException illegalArgumentException) {
+            errorMessage = "The latitude / longitude values that were provided were invalid " + location.getLatitude() + " / " + location.getLongitude();
+            Log.e(Constants.TAG, "An exception has occurred: " + illegalArgumentException.getMessage());
+            if (Constants.DEBUG) {
+                illegalArgumentException.printStackTrace();
+            }
+        } finally {
+            Log.i(Constants.TAG, "Finished searching for the address...");
+        }
+
+        if (errorMessage != null && !errorMessage.isEmpty()) {
+            handleResult(Constants.RESULT_FAILURE, errorMessage);
+            return;
+        }
+
+        if (addressList == null || addressList.isEmpty()) {
+            errorMessage = "The geocoder could not find an address for the given latitude / longitude";
+            Log.e(Constants.TAG, "An exception has occurred: " + errorMessage);
+            handleResult(Constants.RESULT_FAILURE, errorMessage);
+            return;
+        }
+
+        StringBuffer result = new StringBuffer();
+
+        for (Address address: addressList) {
+            for (int index = 0; index < address.getMaxAddressLineIndex(); index++) {
+                result.append(address.getAddressLine(index) + System.getProperty("line.separator"));
+            }
+            result.append(System.getProperty("line.separator"));
+        }
+        Log.i(Constants.TAG, "There were " + addressList.size() + " addresses found");
+        handleResult(Constants.RESULT_SUCCESS, result.toString());
     }
 
     private void handleResult(int resultCode, String message) {
